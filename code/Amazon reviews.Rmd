@@ -1,0 +1,82 @@
+---
+title: "text mining amazon"
+output: word_document
+---
+This project is to mining the Amazon Fine Food Reviews dataset which consists of 568,454 food reviews Amazon users left up to October 2012.
+```{r}
+library(RSQLite)
+library(tm)
+library(wordcloud)
+library(igraph)
+setwd("I:/R Data")
+db = dbConnect(SQLite(), "amazon.sqlite")
+
+dbListTables(db)
+```
+
+Make a wordcloud plot to find the most frequency words
+```{r}
+
+#read data from the database into R
+reviews <- dbGetQuery(db, " SELECT *
+                            FROM Reviews
+                            LIMIT 10000")
+
+# wordcloud funtion
+make_word_cloud <- function(documents) {
+  
+  # input the sentence
+  corpus = Corpus(VectorSource(tolower(documents)))
+  
+  # clean the words
+  corpus = tm_map(corpus, removePunctuation)
+  corpus = tm_map(corpus, removeWords, stopwords("english"))
+  
+  # make into document term matrix
+  frequencies = DocumentTermMatrix(corpus)
+  
+  # make a frequncecy matrix
+  word_frequencies = as.data.frame(as.matrix(frequencies))
+  
+  words <- colnames(word_frequencies)
+  freq <- colSums(word_frequencies)
+  
+  # make the plit
+  wordcloud(words, freq,
+            min.freq=sort(freq, decreasing=TRUE)[[400]],
+            colors=brewer.pal(8, "Dark2"),
+            random.color=TRUE)  
+}
+
+make_word_cloud(reviews$Text)
+```
+
+Make a igraph to see the relation between words
+```{r}
+
+
+corpus = Corpus(VectorSource(tolower(reviews$Text[1:100])))
+corpus = tm_map(corpus, removePunctuation)
+corpus = tm_map(corpus, removeWords, stopwords("english"))
+  
+frequencies = DocumentTermMatrix(corpus)
+  
+tmx = t(frequencies)
+mdtm = as.matrix(tmx)  
+mdtm[mdtm >= 1] = 1
+
+test = mdtm[rowSums(mdtm)>=10,]
+nrow(test)
+
+termMatrix = test %*% t(test)
+
+g = graph.adjacency(termMatrix, weighted = T, mode = "undirected")
+g = simplify(g)
+
+V(g)$label = V(g)$name
+V(g)$degree = degree(g)
+
+set.seed(123)
+layout1 = layout.fruchterman.reingold(g)
+tkplot(g, layout = layout1)
+```
